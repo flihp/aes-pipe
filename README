@@ -1,0 +1,4 @@
+aes-pipe
+========
+
+A simple program to demonstrate the OpenSSL EVP API for symmetric cryptography.  Specifically using the AES algorithm to encrypt or decrypt data in a UNIX shell pipeline program.

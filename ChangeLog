@@ -1,0 +1,3 @@
+2013-05-04  Philip Tricca <flihp@twobit.us>
+	Add minimal autotools build.
+	First check-in of aes-pipe.c with just option parsing.
