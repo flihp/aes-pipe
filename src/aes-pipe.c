@@ -100,6 +100,21 @@ get_key (const char* keyfile, char* keybuf, size_t size)
     return count;
 }
 
+void
+pp_buf (char* buf, size_t bufsize, size_t width, size_t group)
+{
+    int i = 0;
+
+    for (i = 0; i < bufsize; ++i) {
+        printf ("%02x", (unsigned char)*(buf + i));
+        if ((i + 1) % group == 0 && i + 1 < bufsize)
+            printf (" ");
+        if ((i + 1) % width == 0 && i + 1 < bufsize)
+            printf ("\n");
+    }
+    printf ("\n");
+}
+
 int
 main (int argc, char* argv[])
 {
@@ -122,5 +137,6 @@ main (int argc, char* argv[])
 
     fprintf (stderr, "with keyfile: %s, of size %d\n", args.keyfile, keysize * 8);
 
+    pp_buf (keybuf, keysize, 16, 2);
     exit (EXIT_SUCCESS);
 }
