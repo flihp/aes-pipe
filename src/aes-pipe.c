@@ -111,7 +111,7 @@ drain_buf (char* buf, size_t bufsize, int fd)
         }
         count += this_write;
         fprintf (stderr, "wrote %d bytes\n", this_write);
-    } while (this_write > 0);
+    } while (count < bufsize && this_write > 0);
 
     return count;
 }
