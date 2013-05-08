@@ -80,24 +80,35 @@ check_sanity (const char* pname, args_t* args)
     return 0;
 }
 
-size_t
-get_key (const char* keyfile, char* keybuf, size_t size)
+ssize_t
+fill_buf (char* buf, size_t bufsize, int fd)
 {
-    int fd = 0;
-    size_t count = 0, this_read = 0;
-    if ((fd = open (keyfile, O_RDONLY)) == -1) {
-        fprintf (stderr, "Unable to open keyfile: %s\n", keyfile);
-        return -1;
-    }
+    ssize_t this_read = 0, count = 0;
+
     do {
-        this_read = read (fd, keybuf, size - count);
+        this_read = read (fd, buf + count, bufsize - count);
         if (this_read == -1) {
             perror ("read");
             return -1;
         }
         count += this_read;
-    } while (this_read != 0 || count == size );
+    } while (this_read > 0);
+
     return count;
+}
+
+size_t
+get_key (const char* keyfile, char* keybuf, size_t size)
+{
+    int fd = 0;
+    size_t count = 0, this_read = 0;
+
+    if ((fd = open (keyfile, O_RDONLY)) == -1) {
+        fprintf (stderr, "Unable to open keyfile: %s\n", keyfile);
+        return -1;
+    }
+
+    return fill_buf (keybuf, size, fd);
 }
 
 void
