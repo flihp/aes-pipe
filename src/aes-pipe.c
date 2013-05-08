@@ -20,6 +20,7 @@
 #endif
 
 #define USAGE "%s --[encrypt|decrypt] --keyfile /path/to/file.key\n"
+#define BUFSIZE 4096
 
 typedef struct {
     char* keyfile;
@@ -150,7 +151,9 @@ main (int argc, char* argv[])
 {
     args_t args = { NULL, TRUE, !TRUE };
     size_t keysize = 0;
+    ssize_t count_read = 0, count_write = 0;
     char keybuf[EVP_MAX_KEY_LENGTH] = { 0, };
+    char databuf[BUFSIZE] = { 0, };
 
     parse_args (argc, argv, &args);
     if (check_sanity (argv[0], &args))
@@ -168,5 +171,17 @@ main (int argc, char* argv[])
     fprintf (stderr, "with keyfile: %s, of size %d\n", args.keyfile, keysize * 8);
 
     pp_buf (keybuf, keysize, 16, 2);
+    do {
+        count_read = fill_buf (databuf, BUFSIZE, STDIN_FILENO);
+        if (count_read == -1)
+            exit (EXIT_FAILURE);
+        count_write = drain_buf (databuf, count_read, STDOUT_FILENO);
+        if (count_write == -1)
+            exit (EXIT_FAILURE);
+        if (count_write != count_read) {
+            fprintf (stderr, "short write!\n");
+            exit (EXIT_FAILURE);
+        }
+    } while (count_read == BUFSIZE);
     exit (EXIT_SUCCESS);
 }
