@@ -170,7 +170,6 @@ main (int argc, char* argv[])
 
     fprintf (stderr, "with keyfile: %s, of size %d\n", args.keyfile, keysize * 8);
 
-    pp_buf (keybuf, keysize, 16, 2);
     do {
         count_read = fill_buf (databuf, BUFSIZE, STDIN_FILENO);
         if (count_read == -1)
