@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #ifndef TRUE
   #define TRUE 1
@@ -93,6 +94,24 @@ fill_buf (char* buf, size_t bufsize, int fd)
         }
         count += this_read;
     } while (this_read > 0);
+
+    return count;
+}
+
+ssize_t
+drain_buf (char* buf, size_t bufsize, int fd)
+{
+    ssize_t this_write = 0, count = 0;
+
+    do {
+        this_write = write (fd, buf + count, bufsize - count);
+        if (this_write == -1) {
+            perror ("write");
+            return -1;
+        }
+        count += this_write;
+        fprintf (stderr, "wrote %d bytes\n", this_write);
+    } while (this_write > 0);
 
     return count;
 }
