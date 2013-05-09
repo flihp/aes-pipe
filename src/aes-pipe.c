@@ -10,22 +10,19 @@
 #include <getopt.h>
 #include <openssl/evp.h>
 #include <string.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-#ifndef TRUE
-  #define TRUE 1
-#endif
 
 #define USAGE "%s --[encrypt|decrypt] --keyfile /path/to/file.key\n"
 #define BUFSIZE 4096
 
 typedef struct {
     char* keyfile;
-    int encrypt;
-    int decrypt;
+    bool encrypt;
+    bool decrypt;
 } args_t;
 
 void
@@ -41,10 +38,10 @@ parse_args (int argc, char* argv[], args_t* args)
     while ((ret = getopt_long(argc, argv, "edk:", options, NULL)) != -1) {
         switch (ret) {
         case 'e':
-            args->encrypt = TRUE;
+            args->encrypt = true;
             break;
         case 'd':
-            args->decrypt = TRUE;
+            args->decrypt = true;
             break;
         case 'k':
             args->keyfile = optarg;
@@ -66,8 +63,7 @@ check_sanity (const char* pname, args_t* args)
         fprintf (stderr, USAGE, pname);
         return 1;
     }
-    if ((!args->encrypt && !args->decrypt) || 
-        (args->encrypt && args->decrypt)) {
+    if (args->encrypt == args->decrypt) {
         fprintf (stderr, USAGE, pname);
         return 1;
     }
@@ -149,7 +145,7 @@ pp_buf (char* buf, size_t bufsize, size_t width, size_t group)
 int
 main (int argc, char* argv[])
 {
-    args_t args = { NULL, TRUE, !TRUE };
+    args_t args = { NULL, true, false };
     size_t keysize = 0;
     ssize_t count_read = 0, count_write = 0;
     char keybuf[EVP_MAX_KEY_LENGTH] = { 0, };
