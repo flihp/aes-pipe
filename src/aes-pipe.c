@@ -21,11 +21,15 @@
 
 typedef struct {
     char* keyfile;
-    ssize_t keysize;
     bool encrypt;
     bool decrypt;
     bool verbose;
 } args_t;
+
+typedef struct {
+    char keybuf [EVP_MAX_KEY_LENGTH];
+    ssize_t keysize;
+} crypt_data_t;
 
 void
 parse_args (int argc, char* argv[], args_t* args)
@@ -148,7 +152,7 @@ pp_buf (char* buf, size_t bufsize, size_t width, size_t group)
 }
 
 void
-dump_mode (args_t* args)
+dump_mode (args_t* args, ssize_t keysize)
 {
     fprintf (stderr, "I'll be ");
     if (args->encrypt)
@@ -156,25 +160,25 @@ dump_mode (args_t* args)
     else
         fprintf (stderr, "decrypting ");
 
-    fprintf (stderr, "with keyfile: %s, of size %d\n", args->keyfile, args->keysize * 8);
+    fprintf (stderr, "with keyfile: %s, of size %d\n", args->keyfile, keysize * 8);
 }
 
 int
 main (int argc, char* argv[])
 {
     args_t args = { 0, };
+    crypt_data_t crypt_data = { 0, };
     ssize_t count_read = 0, count_write = 0;
-    char keybuf[EVP_MAX_KEY_LENGTH] = { 0, };
     char databuf[BUFSIZE] = { 0, };
 
     parse_args (argc, argv, &args);
     if (check_sanity (argv[0], &args))
         exit (EXIT_FAILURE);
-    args.keysize = get_key (args.keyfile, keybuf, EVP_MAX_KEY_LENGTH);
-    if (args.keysize == -1)
+    crypt_data.keysize = get_key (args.keyfile, crypt_data.keybuf, EVP_MAX_KEY_LENGTH);
+    if (crypt_data.keysize == -1)
         exit (EXIT_FAILURE);
     if (args.verbose)
-        dump_mode (&args);
+        dump_mode (&args, crypt_data.keysize);
     do {
         count_read = fill_buf (databuf, BUFSIZE, STDIN_FILENO);
         if (count_read == -1)
