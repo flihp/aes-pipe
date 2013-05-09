@@ -16,13 +16,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define USAGE "%s --[encrypt|decrypt] --keyfile /path/to/file.key\n"
+#define USAGE "%s [--verbose] --[encrypt|decrypt] --keyfile /path/to/file.key\n"
 #define BUFSIZE 4096
 
 typedef struct {
     char* keyfile;
     bool encrypt;
     bool decrypt;
+    bool verbose;
 } args_t;
 
 void
@@ -33,6 +34,7 @@ parse_args (int argc, char* argv[], args_t* args)
         { "encrypt",       no_argument, NULL, 'e' },
         { "decrypt",       no_argument, NULL, 'd' },
         { "keyfile", required_argument, NULL, 'k' },
+        { "verbose",       no_argument, NULL, 'v' },
         {      NULL,                 0, NULL,  0  }
     };
     while ((ret = getopt_long(argc, argv, "edk:", options, NULL)) != -1) {
@@ -45,6 +47,9 @@ parse_args (int argc, char* argv[], args_t* args)
             break;
         case 'k':
             args->keyfile = optarg;
+            break;
+        case 'v':
+            args->verbose = true;
             break;
         case '?':
             break;
@@ -145,7 +150,7 @@ pp_buf (char* buf, size_t bufsize, size_t width, size_t group)
 int
 main (int argc, char* argv[])
 {
-    args_t args = { NULL, true, false };
+    args_t args = { NULL, true, false, false };
     size_t keysize = 0;
     ssize_t count_read = 0, count_write = 0;
     char keybuf[EVP_MAX_KEY_LENGTH] = { 0, };
