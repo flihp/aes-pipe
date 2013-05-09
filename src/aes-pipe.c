@@ -147,6 +147,18 @@ pp_buf (char* buf, size_t bufsize, size_t width, size_t group)
     printf ("\n");
 }
 
+void
+dump_mode (args_t* args, size_t keysize)
+{
+    fprintf (stderr, "I'll be ");
+    if (args->encrypt)
+        fprintf (stderr, "encrypting ");
+    else
+        fprintf (stderr, "decrypting ");
+
+    fprintf (stderr, "with keyfile: %s, of size %d\n", args->keyfile, keysize * 8);
+}
+
 int
 main (int argc, char* argv[])
 {
@@ -162,15 +174,8 @@ main (int argc, char* argv[])
     keysize = get_key (args.keyfile, keybuf, EVP_MAX_KEY_LENGTH);
     if (keysize == -1)
         exit (EXIT_FAILURE);
-
-    fprintf (stderr, "I'll be ");
-    if (args.encrypt)
-        fprintf (stderr, "encrypting ");
-    else
-        fprintf (stderr, "decrypting ");
-
-    fprintf (stderr, "with keyfile: %s, of size %d\n", args.keyfile, keysize * 8);
-
+    if (args.verbose)
+        dump_mode (&args, keysize);
     do {
         count_read = fill_buf (databuf, BUFSIZE, STDIN_FILENO);
         if (count_read == -1)
