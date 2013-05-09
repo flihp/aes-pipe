@@ -113,7 +113,6 @@ drain_buf (char* buf, size_t bufsize, int fd)
             return -1;
         }
         count += this_write;
-        fprintf (stderr, "wrote %d bytes\n", this_write);
     } while (count < bufsize && this_write > 0);
 
     return count;
@@ -180,9 +179,13 @@ main (int argc, char* argv[])
         count_read = fill_buf (databuf, BUFSIZE, STDIN_FILENO);
         if (count_read == -1)
             exit (EXIT_FAILURE);
+        if (args.verbose)
+            fprintf (stderr, "read %d bytes\n", count_read);
         count_write = drain_buf (databuf, count_read, STDOUT_FILENO);
         if (count_write == -1)
             exit (EXIT_FAILURE);
+        if (args.verbose)
+            fprintf (stderr, "wrote %d bytes\n", count_write);
         if (count_write != count_read) {
             fprintf (stderr, "short write!\n");
             exit (EXIT_FAILURE);
