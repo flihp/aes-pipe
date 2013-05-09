@@ -2,7 +2,7 @@
   AES encryption/decryption program intended for use in shell pipeline.
   gcc -Wall openssl_aes.c -lcrypto
 
-  Philip Tricca <flihp@twobit.us>
+  Copyright 2013 Philip Tricca <flihp@twobit.us>
 */
 
 #include <errno.h>
