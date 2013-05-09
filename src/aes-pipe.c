@@ -16,8 +16,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#define RANDFILE "/dev/urandom"
 #define USAGE "%s [--verbose] --[encrypt|decrypt] --keyfile /path/to/file.key\n"
 #define BUFSIZE 4096
+#define IVSIZE 1024
 
 typedef struct {
     char* keyfile;
@@ -29,6 +31,8 @@ typedef struct {
 typedef struct {
     char keybuf [EVP_MAX_KEY_LENGTH];
     ssize_t keysize;
+    char ivbuf [IVSIZE];
+    ssize_t ivsize;
 } crypt_data_t;
 
 void
@@ -152,7 +156,7 @@ pp_buf (char* buf, size_t bufsize, size_t width, size_t group)
 }
 
 void
-dump_mode (args_t* args, ssize_t keysize)
+dump_mode (args_t* args, crypt_data_t* data)
 {
     fprintf (stderr, "I'll be ");
     if (args->encrypt)
@@ -160,7 +164,30 @@ dump_mode (args_t* args, ssize_t keysize)
     else
         fprintf (stderr, "decrypting ");
 
-    fprintf (stderr, "with keyfile: %s, of size %d\n", args->keyfile, keysize * 8);
+    fprintf (stderr, "with keyfile: %s, of size %d and %d byte IV\n", args->keyfile, data->keysize * 8, data->ivsize);
+}
+
+ssize_t
+iv_write (crypt_data_t* crypt_data, int fd_out)
+{
+    int fd = 0, count = 0;
+
+    if ((fd = open (RANDFILE, O_RDONLY)) == -1) {
+        fprintf (stderr, "Unable to open file %s\n", RANDFILE);
+        return -1;
+    }
+
+    crypt_data->ivsize = fill_buf (crypt_data->ivbuf, IVSIZE, fd);
+    if (crypt_data->ivsize == -1)
+        return -1;
+    count = drain_buf (crypt_data->ivbuf, crypt_data->ivsize, fd_out);
+    if (count == -1)
+        return -1;
+    if (count != crypt_data->ivsize) {
+        fprintf (stderr, "Error: Didn't write full IV.");
+        return -1;
+    }
+    return crypt_data->ivsize;
 }
 
 int
@@ -177,8 +204,13 @@ main (int argc, char* argv[])
     crypt_data.keysize = get_key (args.keyfile, crypt_data.keybuf, EVP_MAX_KEY_LENGTH);
     if (crypt_data.keysize == -1)
         exit (EXIT_FAILURE);
+    if (args.encrypt) {
+        crypt_data.ivsize = iv_write (&crypt_data, STDOUT_FILENO);
+        if (crypt_data.ivsize == -1)
+            exit (EXIT_FAILURE);
+    }
     if (args.verbose)
-        dump_mode (&args, crypt_data.keysize);
+        dump_mode (&args, &crypt_data);
     do {
         count_read = fill_buf (databuf, BUFSIZE, STDIN_FILENO);
         if (count_read == -1)
