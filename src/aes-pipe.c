@@ -163,7 +163,7 @@ dump_mode (args_t* args)
 int
 main (int argc, char* argv[])
 {
-    args_t args = { NULL, 0, true, false, false };
+    args_t args = { 0, };
     ssize_t count_read = 0, count_write = 0;
     char keybuf[EVP_MAX_KEY_LENGTH] = { 0, };
     char databuf[BUFSIZE] = { 0, };
