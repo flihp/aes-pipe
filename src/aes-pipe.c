@@ -19,7 +19,6 @@
 #define RANDFILE "/dev/urandom"
 #define USAGE "%s [--verbose] --[encrypt|decrypt] --keyfile /path/to/file.key\n"
 #define BUFSIZE 4096
-#define IVSIZE 1024
 
 typedef struct {
     char* keyfile;
@@ -31,7 +30,7 @@ typedef struct {
 typedef struct {
     char keybuf [EVP_MAX_KEY_LENGTH];
     ssize_t keysize;
-    char ivbuf [IVSIZE];
+    char ivbuf [EVP_MAX_KEY_LENGTH];
     ssize_t ivsize;
 } crypt_data_t;
 
@@ -177,7 +176,7 @@ iv_write (crypt_data_t* crypt_data, int fd_out)
         return -1;
     }
 
-    crypt_data->ivsize = fill_buf (crypt_data->ivbuf, IVSIZE, fd);
+    crypt_data->ivsize = fill_buf (crypt_data->ivbuf, crypt_data->ivsize, fd);
     if (crypt_data->ivsize == -1)
         return -1;
     count = drain_buf (crypt_data->ivbuf, crypt_data->ivsize, fd_out);
@@ -204,6 +203,7 @@ main (int argc, char* argv[])
     crypt_data.keysize = get_key (args.keyfile, crypt_data.keybuf, EVP_MAX_KEY_LENGTH);
     if (crypt_data.keysize == -1)
         exit (EXIT_FAILURE);
+    crypt_data.ivsize = crypt_data.keysize;
     if (args.encrypt) {
         crypt_data.ivsize = iv_write (&crypt_data, STDOUT_FILENO);
         if (crypt_data.ivsize == -1)
