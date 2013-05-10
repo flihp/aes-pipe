@@ -167,6 +167,20 @@ dump_mode (args_t* args, crypt_data_t* data)
 }
 
 ssize_t
+iv_read (crypt_data_t* crypt_data, int fd_in)
+{
+    unsigned int count = 0;
+
+    count = fill_buf (crypt_data->ivbuf, crypt_data->ivsize, fd_in);
+    if (count == -1)
+        return -1;
+    if (count != crypt_data->ivsize) {
+        fprintf (stderr, "Error: Unable to read IV from input stream.\n");
+        return -1;
+    }
+}
+
+ssize_t
 iv_write (crypt_data_t* crypt_data, int fd_out)
 {
     int fd = 0, count = 0;
@@ -206,6 +220,11 @@ main (int argc, char* argv[])
     crypt_data.ivsize = crypt_data.keysize;
     if (args.encrypt) {
         crypt_data.ivsize = iv_write (&crypt_data, STDOUT_FILENO);
+        if (crypt_data.ivsize == -1)
+            exit (EXIT_FAILURE);
+    }
+    if (args.decrypt) {
+        crypt_data.ivsize = iv_read (&crypt_data, STDIN_FILENO);
         if (crypt_data.ivsize == -1)
             exit (EXIT_FAILURE);
     }
