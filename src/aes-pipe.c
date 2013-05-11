@@ -38,7 +38,7 @@ typedef struct {
     ssize_t ivsize;
 } crypt_data_t;
 
-typedef int (*crypt_func_t)(crypt_data_t*);
+typedef int (*crypt_func_t)(crypt_data_t*, size_t);
 
 void
 parse_args (int argc, char* argv[], args_t* args)
@@ -212,13 +212,32 @@ iv_write (crypt_data_t* crypt_data, int fd_out)
 }
 
 int
-encrypt (crypt_data_t* crypt_data)
+encrypt (crypt_data_t* crypt_data, size_t count)
 {
-    return 0;
+    int tmp = 0, crypt_bytes = 0;
+    fprintf (stderr, "count: %d bytes\n", count);
+    fprintf (stderr, "block size of %d bytes\n", EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
+    fprintf (stderr, "this is %d blocks\n", count / EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
+    fprintf (stderr, "odd bytes are %d\n", count % EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
+
+    if (count > 0) {
+        fprintf (stderr, "encrypting %d bytes\n", count);
+        EVP_EncryptUpdate (&crypt_data->ctx, crypt_data->crypt_buf, &tmp, crypt_data->data_buf, count);
+        crypt_bytes += tmp;
+    }
+
+    fprintf (stderr, "crypt_bytes after EncryptUpdate: %d\n", crypt_bytes);
+    if (count < crypt_data->buf_size) {
+        EVP_EncryptFinal (&crypt_data->ctx, &crypt_data->crypt_buf[crypt_bytes], &tmp);
+        crypt_bytes += tmp;
+        fprintf (stderr, "crypt_bytes after EncryptFinal: %d\n", crypt_bytes);
+    }
+    fprintf (stderr, "crypt_bytes before return: %d\n", crypt_bytes);
+    return crypt_bytes;
 }
 
 int
-decrypt (crypt_data_t* crypt_data)
+decrypt (crypt_data_t* crypt_data, size_t count)
 {
     return 0;
 }
@@ -226,27 +245,28 @@ decrypt (crypt_data_t* crypt_data)
 ssize_t
 proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
 {
-    int status = 0;
+    size_t count_crypt = 0;
     ssize_t count_read = 0, count_write = 0;
 
     do {
+        fprintf (stderr, "===\n");
         count_read = fill_buf (crypt_data->data_buf,
                                crypt_data->buf_size,
                                STDIN_FILENO);
+        fprintf (stderr, "count_read: %d\n", count_read);
         if (count_read == -1)
             exit (EXIT_FAILURE);
         if (args->verbose)
             fprintf (stderr, "read %d bytes\n", count_read);
         /*  do encrypt / decrypt here, callback?  */
-        status = do_crypt (crypt_data);
-        if (status != 0)
-            return -1;
-        count_write = drain_buf (crypt_data->data_buf, count_read, STDOUT_FILENO);
+        count_crypt = do_crypt (crypt_data, count_read);
+        fprintf (stderr, "count_crypt: %d\n", count_crypt);
+        count_write += drain_buf (crypt_data->crypt_buf, count_crypt, STDOUT_FILENO);
         if (count_write == -1)
             exit (EXIT_FAILURE);
         if (args->verbose)
             fprintf (stderr, "wrote %d bytes\n", count_write);
-        if (count_write != count_read) {
+        if (count_write < count_read) {
             fprintf (stderr, "short write!\n");
             exit (EXIT_FAILURE);
         }
@@ -281,7 +301,9 @@ aes_init (crypt_data_t* crypt_data)
                         crypt_data->keybuf,
                         crypt_data->ivbuf);
     crypt_data->buf_size = MULTBUFS * EVP_CIPHER_CTX_block_size (&crypt_data->ctx);
-    crypt_data->crypt_buf = (char*)malloc (crypt_data->buf_size);
+    crypt_data->crypt_buf =
+        (char*)malloc (crypt_data->buf_size +
+                       EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
     crypt_data->data_buf = (char*)malloc (crypt_data->buf_size);
     if (!crypt_data->crypt_buf || !crypt_data->data_buf) {
         fprintf (stderr, "Unable to allocate memory.\n");
@@ -318,7 +340,7 @@ main (int argc, char* argv[])
     }
     if (args.verbose)
         dump_mode (&args, &crypt_data);
-    if (aes_init (&crypt_data) != 0)
+    if (aes_init (&crypt_data))
         exit (EXIT_FAILURE);
     if (args.encrypt)
         count = proc_loop (&args, &crypt_data, &encrypt);
