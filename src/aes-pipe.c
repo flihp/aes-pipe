@@ -209,9 +209,9 @@ encrypt (args_t* args, crypt_data_t* crypt_data)
     crypt_data->ivsize = iv_write (crypt_data, STDOUT_FILENO);
     if (crypt_data->ivsize == -1)
         exit (EXIT_FAILURE);
-
     if (args->verbose)
         dump_mode (args, crypt_data);
+
     return proc_loop ();
 }
 
@@ -221,9 +221,9 @@ decrypt (args_t* args, crypt_data_t* crypt_data)
     crypt_data->ivsize = iv_read (crypt_data, STDIN_FILENO);
     if (crypt_data->ivsize == -1)
         exit (EXIT_FAILURE);
-
     if (args->verbose)
         dump_mode (args, crypt_data);
+
     return proc_loop (args);
 }
 
@@ -259,7 +259,7 @@ main (int argc, char* argv[])
 {
     args_t args = { 0, };
     crypt_data_t crypt_data = { 0, };
-    ssize_t count_read = 0, count_write = 0;
+    ssize_t count = 0;
 
     parse_args (argc, argv, &args);
     if (check_sanity (argv[0], &args))
@@ -271,8 +271,17 @@ main (int argc, char* argv[])
     crypt_data.ivsize = crypt_data.keysize;
 
     if (args.encrypt)
-        encrypt (&args, &crypt_data);
+        count = encrypt (&args, &crypt_data);
     if (args.decrypt)
-        decrypt (&args, &crypt_data);
+        count = decrypt (&args, &crypt_data);
+    if (count == -1)
+        exit (EXIT_FAILURE);
+
+    if (args.verbose)
+        fprintf (stderr,
+                 "successfully %s %d bytes of data\n",
+                 args.encrypt ? "encrypted" : "decrypted",
+                 count);
+
     exit (EXIT_SUCCESS);
 }
