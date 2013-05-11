@@ -169,7 +169,7 @@ dump_mode (args_t* args, crypt_data_t* data)
 ssize_t
 iv_read (crypt_data_t* crypt_data, int fd_in)
 {
-    unsigned int count = 0;
+    ssize_t count = 0;
 
     count = fill_buf (crypt_data->ivbuf, crypt_data->ivsize, fd_in);
     if (count == -1)
@@ -178,6 +178,8 @@ iv_read (crypt_data_t* crypt_data, int fd_in)
         fprintf (stderr, "Error: Unable to read IV from input stream.\n");
         return -1;
     }
+
+    return crypt_data->ivsize;
 }
 
 ssize_t
