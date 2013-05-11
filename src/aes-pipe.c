@@ -28,6 +28,7 @@ typedef struct {
 } args_t;
 
 typedef struct {
+    EVP_CIPHER_CTX ctx;
     char keybuf [EVP_MAX_KEY_LENGTH];
     ssize_t keysize;
     char ivbuf [EVP_MAX_KEY_LENGTH];
@@ -208,39 +209,15 @@ iv_write (crypt_data_t* crypt_data, int fd_out)
 }
 
 int
-do_encrypt (crypt_data_t* crypt_data)
+encrypt (crypt_data_t* crypt_data)
 {
     return 0;
-}
-
-ssize_t
-encrypt (args_t* args, crypt_data_t* crypt_data)
-{
-    crypt_data->ivsize = iv_write (crypt_data, STDOUT_FILENO);
-    if (crypt_data->ivsize == -1)
-        exit (EXIT_FAILURE);
-    if (args->verbose)
-        dump_mode (args, crypt_data);
-
-    return proc_loop (args, crypt_data, &do_encrypt);
 }
 
 int
-do_decrypt (crypt_data_t* crypt_data)
+decrypt (crypt_data_t* crypt_data)
 {
     return 0;
-}
-
-ssize_t
-decrypt (args_t* args, crypt_data_t* crypt_data)
-{
-    crypt_data->ivsize = iv_read (crypt_data, STDIN_FILENO);
-    if (crypt_data->ivsize == -1)
-        exit (EXIT_FAILURE);
-    if (args->verbose)
-        dump_mode (args, crypt_data);
-
-    return proc_loop (args, crypt_data, &do_decrypt);
 }
 
 ssize_t
@@ -290,10 +267,27 @@ main (int argc, char* argv[])
         exit (EXIT_FAILURE);
     crypt_data.ivsize = crypt_data.keysize;
 
+    if (args.encrypt) {
+        crypt_data.ivsize = iv_write (&crypt_data, STDOUT_FILENO);
+        if (crypt_data.ivsize == -1)
+            exit (EXIT_FAILURE);
+    }
+    if (args.decrypt) {
+        crypt_data.ivsize = iv_read (&crypt_data, STDIN_FILENO);
+        if (crypt_data.ivsize == -1)
+            exit (EXIT_FAILURE);
+    }
+    if (args.verbose)
+        dump_mode (&args, &crypt_data);
+    EVP_EncryptInit_ex (&crypt_data.ctx,
+                        EVP_aes_256_cbc (),
+                        NULL,
+                        crypt_data.keybuf,
+                        crypt_data.ivbuf);
     if (args.encrypt)
-        count = encrypt (&args, &crypt_data);
+        count = proc_loop (&args, &crypt_data, &encrypt);
     if (args.decrypt)
-        count = decrypt (&args, &crypt_data);
+        count = proc_loop (&args, &crypt_data, &decrypt);
     if (count == -1)
         exit (EXIT_FAILURE);
 
