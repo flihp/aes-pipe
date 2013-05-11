@@ -125,7 +125,7 @@ drain_buf (char* buf, size_t bufsize, int fd)
     return count;
 }
 
-size_t
+ssize_t
 get_key (const char* keyfile, char* keybuf, size_t size)
 {
     int fd = 0;
