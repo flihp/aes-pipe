@@ -34,6 +34,8 @@ typedef struct {
     ssize_t ivsize;
 } crypt_data_t;
 
+typedef int (*crypt_func_t)(crypt_data_t*);
+
 void
 parse_args (int argc, char* argv[], args_t* args)
 {
@@ -205,6 +207,12 @@ iv_write (crypt_data_t* crypt_data, int fd_out)
     return crypt_data->ivsize;
 }
 
+int
+do_encrypt (crypt_data_t* crypt_data)
+{
+    return 0;
+}
+
 ssize_t
 encrypt (args_t* args, crypt_data_t* crypt_data)
 {
@@ -214,7 +222,13 @@ encrypt (args_t* args, crypt_data_t* crypt_data)
     if (args->verbose)
         dump_mode (args, crypt_data);
 
-    return proc_loop ();
+    return proc_loop (args, crypt_data, &do_encrypt);
+}
+
+int
+do_decrypt (crypt_data_t* crypt_data)
+{
+    return 0;
 }
 
 ssize_t
@@ -226,12 +240,13 @@ decrypt (args_t* args, crypt_data_t* crypt_data)
     if (args->verbose)
         dump_mode (args, crypt_data);
 
-    return proc_loop (args);
+    return proc_loop (args, crypt_data, &do_decrypt);
 }
 
 ssize_t
-proc_loop (args_t* args)
+proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
 {
+    int status = 0;
     ssize_t count_read = 0, count_write = 0;
     char databuf[BUFSIZE] = { 0, };
 
@@ -242,6 +257,9 @@ proc_loop (args_t* args)
         if (args->verbose)
             fprintf (stderr, "read %d bytes\n", count_read);
         /*  do encrypt / decrypt here, callback?  */
+        status = do_crypt (crypt_data);
+        if (status != 0)
+            return -1;
         count_write = drain_buf (databuf, count_read, STDOUT_FILENO);
         if (count_write == -1)
             exit (EXIT_FAILURE);
