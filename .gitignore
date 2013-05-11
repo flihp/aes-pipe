@@ -5,6 +5,7 @@ Makefile
 Makefile.in
 aclocal.m4
 autom4te.cache/
+compile
 config.log
 config.status
 configure
@@ -16,3 +17,4 @@ src/Makefile
 src/Makefile.in
 src/aes-pipe
 src/aes-pipe.o
+src/aes_pipe-aes-pipe.o
