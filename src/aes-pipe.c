@@ -18,7 +18,7 @@
 
 #define RANDFILE "/dev/urandom"
 #define USAGE "%s [--verbose] --[encrypt|decrypt] --keyfile /path/to/file.key\n"
-#define BUFSIZE 4096
+#define MULTBUFS 256 
 
 typedef struct {
     char* keyfile;
@@ -28,6 +28,9 @@ typedef struct {
 } args_t;
 
 typedef struct {
+    size_t buf_size;
+    char* crypt_buf;
+    char* data_buf;
     EVP_CIPHER_CTX ctx;
     char keybuf [EVP_MAX_KEY_LENGTH];
     ssize_t keysize;
@@ -225,10 +228,11 @@ proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
 {
     int status = 0;
     ssize_t count_read = 0, count_write = 0;
-    char databuf[BUFSIZE] = { 0, };
 
     do {
-        count_read = fill_buf (databuf, BUFSIZE, STDIN_FILENO);
+        count_read = fill_buf (crypt_data->data_buf,
+                               crypt_data->buf_size,
+                               STDIN_FILENO);
         if (count_read == -1)
             exit (EXIT_FAILURE);
         if (args->verbose)
@@ -237,7 +241,7 @@ proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
         status = do_crypt (crypt_data);
         if (status != 0)
             return -1;
-        count_write = drain_buf (databuf, count_read, STDOUT_FILENO);
+        count_write = drain_buf (crypt_data->data_buf, count_read, STDOUT_FILENO);
         if (count_write == -1)
             exit (EXIT_FAILURE);
         if (args->verbose)
@@ -246,9 +250,44 @@ proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
             fprintf (stderr, "short write!\n");
             exit (EXIT_FAILURE);
         }
-    } while (count_read == BUFSIZE);
+    } while (count_read == crypt_data->buf_size);
 
     return count_write;
+}
+
+int
+aes_init (crypt_data_t* crypt_data)
+{
+    const EVP_CIPHER* cipher = 0;
+
+    switch (crypt_data->keysize) {
+    case 16:
+        cipher = EVP_aes_128_cbc ();
+        break;
+    case 24:
+        cipher = EVP_aes_192_cbc ();
+        break;
+    case 32:
+        cipher = EVP_aes_256_cbc ();
+        break;
+    default:
+        fprintf (stderr, "Invalid key size.\n");
+        return 1;
+    }
+
+    EVP_EncryptInit_ex (&crypt_data->ctx,
+                        cipher,
+                        NULL,
+                        crypt_data->keybuf,
+                        crypt_data->ivbuf);
+    crypt_data->buf_size = MULTBUFS * EVP_CIPHER_CTX_block_size (&crypt_data->ctx);
+    crypt_data->crypt_buf = (char*)malloc (crypt_data->buf_size);
+    crypt_data->data_buf = (char*)malloc (crypt_data->buf_size);
+    if (!crypt_data->crypt_buf || !crypt_data->data_buf) {
+        fprintf (stderr, "Unable to allocate memory.\n");
+        return 1;
+    }
+    return 0;
 }
 
 int
@@ -279,11 +318,8 @@ main (int argc, char* argv[])
     }
     if (args.verbose)
         dump_mode (&args, &crypt_data);
-    EVP_EncryptInit_ex (&crypt_data.ctx,
-                        EVP_aes_256_cbc (),
-                        NULL,
-                        crypt_data.keybuf,
-                        crypt_data.ivbuf);
+    if (aes_init (&crypt_data) != 0)
+        exit (EXIT_FAILURE);
     if (args.encrypt)
         count = proc_loop (&args, &crypt_data, &encrypt);
     if (args.decrypt)
