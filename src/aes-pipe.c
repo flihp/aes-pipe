@@ -203,48 +203,76 @@ iv_write (crypt_data_t* crypt_data, int fd_out)
     return crypt_data->ivsize;
 }
 
-int
-main (int argc, char* argv[])
+ssize_t
+encrypt (args_t* args, crypt_data_t* crypt_data)
 {
-    args_t args = { 0, };
-    crypt_data_t crypt_data = { 0, };
+    crypt_data->ivsize = iv_write (crypt_data, STDOUT_FILENO);
+    if (crypt_data->ivsize == -1)
+        exit (EXIT_FAILURE);
+
+    if (args->verbose)
+        dump_mode (args, crypt_data);
+    return proc_loop ();
+}
+
+ssize_t
+decrypt (args_t* args, crypt_data_t* crypt_data)
+{
+    crypt_data->ivsize = iv_read (crypt_data, STDIN_FILENO);
+    if (crypt_data->ivsize == -1)
+        exit (EXIT_FAILURE);
+
+    if (args->verbose)
+        dump_mode (args, crypt_data);
+    return proc_loop (args);
+}
+
+ssize_t
+proc_loop (args_t* args)
+{
     ssize_t count_read = 0, count_write = 0;
     char databuf[BUFSIZE] = { 0, };
 
-    parse_args (argc, argv, &args);
-    if (check_sanity (argv[0], &args))
-        exit (EXIT_FAILURE);
-    crypt_data.keysize = get_key (args.keyfile, crypt_data.keybuf, EVP_MAX_KEY_LENGTH);
-    if (crypt_data.keysize == -1)
-        exit (EXIT_FAILURE);
-    crypt_data.ivsize = crypt_data.keysize;
-    if (args.encrypt) {
-        crypt_data.ivsize = iv_write (&crypt_data, STDOUT_FILENO);
-        if (crypt_data.ivsize == -1)
-            exit (EXIT_FAILURE);
-    }
-    if (args.decrypt) {
-        crypt_data.ivsize = iv_read (&crypt_data, STDIN_FILENO);
-        if (crypt_data.ivsize == -1)
-            exit (EXIT_FAILURE);
-    }
-    if (args.verbose)
-        dump_mode (&args, &crypt_data);
     do {
         count_read = fill_buf (databuf, BUFSIZE, STDIN_FILENO);
         if (count_read == -1)
             exit (EXIT_FAILURE);
-        if (args.verbose)
+        if (args->verbose)
             fprintf (stderr, "read %d bytes\n", count_read);
+        /*  do encrypt / decrypt here, callback?  */
         count_write = drain_buf (databuf, count_read, STDOUT_FILENO);
         if (count_write == -1)
             exit (EXIT_FAILURE);
-        if (args.verbose)
+        if (args->verbose)
             fprintf (stderr, "wrote %d bytes\n", count_write);
         if (count_write != count_read) {
             fprintf (stderr, "short write!\n");
             exit (EXIT_FAILURE);
         }
     } while (count_read == BUFSIZE);
+
+    return count_write;
+}
+
+int
+main (int argc, char* argv[])
+{
+    args_t args = { 0, };
+    crypt_data_t crypt_data = { 0, };
+    ssize_t count_read = 0, count_write = 0;
+
+    parse_args (argc, argv, &args);
+    if (check_sanity (argv[0], &args))
+        exit (EXIT_FAILURE);
+
+    crypt_data.keysize = get_key (args.keyfile, crypt_data.keybuf, EVP_MAX_KEY_LENGTH);
+    if (crypt_data.keysize == -1)
+        exit (EXIT_FAILURE);
+    crypt_data.ivsize = crypt_data.keysize;
+
+    if (args.encrypt)
+        encrypt (&args, &crypt_data);
+    if (args.decrypt)
+        decrypt (&args, &crypt_data);
     exit (EXIT_SUCCESS);
 }
