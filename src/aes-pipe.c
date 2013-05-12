@@ -38,7 +38,7 @@ typedef struct {
     ssize_t ivsize;
 } crypt_data_t;
 
-typedef int (*crypt_func_t)(crypt_data_t*, size_t);
+typedef ssize_t (*crypt_func_t)(crypt_data_t*, size_t);
 
 void
 parse_args (int argc, char* argv[], args_t* args)
@@ -218,7 +218,7 @@ iv_write (crypt_data_t* crypt_data, int fd_out)
     return crypt_data->ivsize;
 }
 
-int
+ssize_t
 encrypt (crypt_data_t* crypt_data, size_t count)
 {
     int tmp = 0, crypt_bytes = 0;
@@ -229,13 +229,19 @@ encrypt (crypt_data_t* crypt_data, size_t count)
 
     if (count > 0) {
         fprintf (stderr, "encrypting %d bytes\n", count);
-        EVP_EncryptUpdate (&crypt_data->ctx, crypt_data->crypt_buf, &tmp, crypt_data->data_buf, count);
+        if (!EVP_EncryptUpdate (&crypt_data->ctx, crypt_data->crypt_buf, &tmp, crypt_data->data_buf, count)) {
+            perror ("EVP_EncryptUpdate");
+            return -1;
+        }
         crypt_bytes += tmp;
     }
 
     fprintf (stderr, "crypt_bytes after EncryptUpdate: %d\n", crypt_bytes);
     if (count < crypt_data->buf_size) {
-        EVP_EncryptFinal (&crypt_data->ctx, &crypt_data->crypt_buf[crypt_bytes], &tmp);
+        if (!EVP_EncryptFinal (&crypt_data->ctx, &crypt_data->crypt_buf[crypt_bytes], &tmp)) {
+            perror ("EVP_EncryptFinal");
+            return -1;
+        }
         crypt_bytes += tmp;
         fprintf (stderr, "crypt_bytes after EncryptFinal: %d\n", crypt_bytes);
     }
@@ -243,7 +249,7 @@ encrypt (crypt_data_t* crypt_data, size_t count)
     return crypt_bytes;
 }
 
-int
+ssize_t
 decrypt (crypt_data_t* crypt_data, size_t count)
 {
     return 0;
@@ -252,8 +258,7 @@ decrypt (crypt_data_t* crypt_data, size_t count)
 ssize_t
 proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
 {
-    size_t count_crypt = 0;
-    ssize_t count_read = 0, count_write = 0;
+    ssize_t count_crypt = 0, count_read = 0, count_write = 0;
 
     do {
         fprintf (stderr, "===\n");
@@ -266,7 +271,8 @@ proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
         if (args->verbose)
             fprintf (stderr, "read %d bytes\n", count_read);
         /*  do encrypt / decrypt here, callback?  */
-        count_crypt = do_crypt (crypt_data, count_read);
+        if ((count_crypt = do_crypt (crypt_data, count_read)) == -1)
+            return -1;
         fprintf (stderr, "count_crypt: %d\n", count_crypt);
         count_write += drain_buf (crypt_data->crypt_buf, count_crypt, STDOUT_FILENO);
         if (count_write == -1)
