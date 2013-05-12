@@ -252,7 +252,33 @@ encrypt (crypt_data_t* crypt_data, size_t count)
 ssize_t
 decrypt (crypt_data_t* crypt_data, size_t count)
 {
-    return 0;
+    int tmp = 0, data_bytes = 0;
+    fprintf (stderr, "count: %d bytes\n", count);
+    fprintf (stderr, "block size of %d bytes\n", EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
+    fprintf (stderr, "this is %d blocks\n", count / EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
+    fprintf (stderr, "odd bytes are %d\n", count % EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
+
+    if (count > 0) {
+        fprintf (stderr, "decrypting %d bytes\n", count);
+        pp_buf (stderr, crypt_data->data_buf, crypt_data->ivsize, 16, 2);
+        if (! EVP_DecryptUpdate (&crypt_data->ctx, crypt_data->crypt_buf, &tmp, crypt_data->data_buf, count)) {
+            perror ("EVP_DecryptUpdate");
+            return -1;
+        }
+        data_bytes += tmp;
+    }
+
+    fprintf (stderr, "data_bytes after EncryptUpdate: %d\n", data_bytes);
+    if (count < crypt_data->buf_size) {
+        if (!EVP_DecryptFinal (&crypt_data->ctx, &crypt_data->crypt_buf[data_bytes], &tmp)) {
+            fprintf (stderr, "Incorrect padding: EVP_DecryptFinal failed!\n");
+            return -1;
+        }
+        data_bytes += tmp;
+        fprintf (stderr, "data_bytes after EncryptFinal: %d\n", data_bytes);
+    }
+    fprintf (stderr, "data_bytes before return: %d\n", data_bytes);
+    return data_bytes;
 }
 
 ssize_t
@@ -307,6 +333,9 @@ aes_init (crypt_data_t* crypt_data)
         fprintf (stderr, "Invalid key size.\n");
         return 1;
     }
+
+    /*  use NULL cipher for testing  */
+    cipher = EVP_enc_null ();
 
     EVP_EncryptInit_ex (&crypt_data->ctx,
                         cipher,
