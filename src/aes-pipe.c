@@ -146,18 +146,18 @@ get_key (const char* keyfile, char* keybuf, size_t size)
 }
 
 void
-pp_buf (char* buf, size_t bufsize, size_t width, size_t group)
+pp_buf (FILE* fp, char* buf, size_t bufsize, size_t width, size_t group)
 {
     int i = 0;
 
     for (i = 0; i < bufsize; ++i) {
-        printf ("%02x", (unsigned char)*(buf + i));
+        fprintf (fp, "%02x", (unsigned char)*(buf + i));
         if ((i + 1) % group == 0 && i + 1 < bufsize)
-            printf (" ");
+            fprintf (fp, " ");
         if ((i + 1) % width == 0 && i + 1 < bufsize)
-            printf ("\n");
+            fprintf (fp, "\n");
     }
-    printf ("\n");
+    fprintf (fp, "\n");
 }
 
 void
