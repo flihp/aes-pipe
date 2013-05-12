@@ -279,7 +279,7 @@ proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
             exit (EXIT_FAILURE);
         if (args->verbose)
             fprintf (stderr, "wrote %d bytes\n", count_write);
-        if (count_write < count_read) {
+        if (count_write < count_crypt) {
             fprintf (stderr, "short write!\n");
             exit (EXIT_FAILURE);
         }
