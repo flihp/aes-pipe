@@ -170,6 +170,13 @@ dump_mode (args_t* args, crypt_data_t* data)
         fprintf (stderr, "decrypting ");
 
     fprintf (stderr, "with keyfile: %s, of size %d and %d byte IV\n", args->keyfile, data->keysize * 8, data->ivsize);
+    fprintf (stderr,
+             "Algorithm: %s\n",
+             EVP_CIPHER_name (EVP_CIPHER_CTX_cipher (&data->ctx)));
+    fprintf (stderr, "IV:  ");
+    pp_buf (stderr, data->ivbuf, data->ivsize, 16, 2);
+    fprintf (stderr, "Key: ");
+    pp_buf (stderr, data->keybuf, data->keysize, 16, 2);
 }
 
 ssize_t
@@ -338,10 +345,10 @@ main (int argc, char* argv[])
         if (crypt_data.ivsize == -1)
             exit (EXIT_FAILURE);
     }
-    if (args.verbose)
-        dump_mode (&args, &crypt_data);
     if (aes_init (&crypt_data))
         exit (EXIT_FAILURE);
+    if (args.verbose)
+        dump_mode (&args, &crypt_data);
     if (args.encrypt)
         count = proc_loop (&args, &crypt_data, &encrypt);
     if (args.decrypt)
