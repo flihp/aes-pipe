@@ -29,8 +29,8 @@ typedef struct {
 
 typedef struct {
     size_t buf_size;
-    char* crypt_buf;
-    char* data_buf;
+    char* out_buf;
+    char* in_buf;
     EVP_CIPHER_CTX ctx;
     char keybuf [EVP_MAX_KEY_LENGTH];
     ssize_t keysize;
@@ -229,7 +229,7 @@ encrypt (crypt_data_t* crypt_data, size_t count)
 
     if (count > 0) {
         fprintf (stderr, "encrypting %d bytes\n", count);
-        if (!EVP_EncryptUpdate (&crypt_data->ctx, crypt_data->crypt_buf, &tmp, crypt_data->data_buf, count)) {
+        if (!EVP_EncryptUpdate (&crypt_data->ctx, crypt_data->out_buf, &tmp, crypt_data->in_buf, count)) {
             perror ("EVP_EncryptUpdate");
             return -1;
         }
@@ -238,7 +238,7 @@ encrypt (crypt_data_t* crypt_data, size_t count)
 
     fprintf (stderr, "crypt_bytes after EncryptUpdate: %d\n", crypt_bytes);
     if (count < crypt_data->buf_size) {
-        if (!EVP_EncryptFinal (&crypt_data->ctx, &crypt_data->crypt_buf[crypt_bytes], &tmp)) {
+        if (!EVP_EncryptFinal (&crypt_data->ctx, &crypt_data->out_buf[crypt_bytes], &tmp)) {
             perror ("EVP_EncryptFinal");
             return -1;
         }
@@ -260,8 +260,8 @@ decrypt (crypt_data_t* crypt_data, size_t count)
 
     if (count > 0) {
         fprintf (stderr, "decrypting %d bytes\n", count);
-        pp_buf (stderr, crypt_data->data_buf, crypt_data->ivsize, 16, 2);
-        if (! EVP_DecryptUpdate (&crypt_data->ctx, crypt_data->crypt_buf, &tmp, crypt_data->data_buf, count)) {
+        pp_buf (stderr, crypt_data->in_buf, crypt_data->ivsize, 16, 2);
+        if (! EVP_DecryptUpdate (&crypt_data->ctx, crypt_data->out_buf, &tmp, crypt_data->in_buf, count)) {
             perror ("EVP_DecryptUpdate");
             return -1;
         }
@@ -270,7 +270,7 @@ decrypt (crypt_data_t* crypt_data, size_t count)
 
     fprintf (stderr, "data_bytes after EncryptUpdate: %d\n", data_bytes);
     if (count < crypt_data->buf_size) {
-        if (!EVP_DecryptFinal (&crypt_data->ctx, &crypt_data->crypt_buf[data_bytes], &tmp)) {
+        if (!EVP_DecryptFinal (&crypt_data->ctx, &crypt_data->out_buf[data_bytes], &tmp)) {
             fprintf (stderr, "Incorrect padding: EVP_DecryptFinal failed!\n");
             return -1;
         }
@@ -288,7 +288,7 @@ proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
 
     do {
         fprintf (stderr, "===\n");
-        count_read = fill_buf (crypt_data->data_buf,
+        count_read = fill_buf (crypt_data->in_buf,
                                crypt_data->buf_size,
                                STDIN_FILENO);
         fprintf (stderr, "count_read: %d\n", count_read);
@@ -300,7 +300,7 @@ proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
         if ((count_crypt = do_crypt (crypt_data, count_read)) == -1)
             return -1;
         fprintf (stderr, "count_crypt: %d\n", count_crypt);
-        count_write += drain_buf (crypt_data->crypt_buf, count_crypt, STDOUT_FILENO);
+        count_write += drain_buf (crypt_data->out_buf, count_crypt, STDOUT_FILENO);
         if (count_write == -1)
             exit (EXIT_FAILURE);
         if (args->verbose)
@@ -343,11 +343,11 @@ aes_init (crypt_data_t* crypt_data)
                         crypt_data->keybuf,
                         crypt_data->ivbuf);
     crypt_data->buf_size = INBUFSIZE;
-    crypt_data->crypt_buf =
+    crypt_data->out_buf =
         (char*)malloc (crypt_data->buf_size +
                        EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
-    crypt_data->data_buf = (char*)malloc (crypt_data->buf_size);
-    if (!crypt_data->crypt_buf || !crypt_data->data_buf) {
+    crypt_data->in_buf = (char*)malloc (crypt_data->buf_size);
+    if (!crypt_data->out_buf || !crypt_data->in_buf) {
         fprintf (stderr, "Unable to allocate memory.\n");
         return 1;
     }
