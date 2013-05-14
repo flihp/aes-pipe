@@ -38,7 +38,8 @@ typedef struct {
     ssize_t ivsize;
 } crypt_data_t;
 
-typedef ssize_t (*crypt_func_t)(crypt_data_t*, size_t);
+typedef int (*crypt_update_t)(EVP_CIPHER_CTX*, unsigned char*, int*, const unsigned char*, int);
+typedef int (*crypt_final_t)(EVP_CIPHER_CTX*, unsigned char*, int *);
 
 void
 parse_args (int argc, char* argv[], args_t* args)
@@ -219,74 +220,16 @@ iv_write (crypt_data_t* crypt_data, int fd_out)
 }
 
 ssize_t
-encrypt (crypt_data_t* crypt_data, size_t count)
-{
-    int tmp = 0, crypt_bytes = 0;
-    fprintf (stderr, "count: %d bytes\n", count);
-    fprintf (stderr, "block size of %d bytes\n", EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
-    fprintf (stderr, "this is %d blocks\n", count / EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
-    fprintf (stderr, "odd bytes are %d\n", count % EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
-
-    if (count > 0) {
-        fprintf (stderr, "encrypting %d bytes\n", count);
-        if (!EVP_EncryptUpdate (&crypt_data->ctx, crypt_data->out_buf, &tmp, crypt_data->in_buf, count)) {
-            perror ("EVP_EncryptUpdate");
-            return -1;
-        }
-        crypt_bytes += tmp;
-    }
-
-    fprintf (stderr, "crypt_bytes after EncryptUpdate: %d\n", crypt_bytes);
-    if (count < crypt_data->buf_size) {
-        if (!EVP_EncryptFinal (&crypt_data->ctx, &crypt_data->out_buf[crypt_bytes], &tmp)) {
-            perror ("EVP_EncryptFinal");
-            return -1;
-        }
-        crypt_bytes += tmp;
-        fprintf (stderr, "crypt_bytes after EncryptFinal: %d\n", crypt_bytes);
-    }
-    fprintf (stderr, "crypt_bytes before return: %d\n", crypt_bytes);
-    return crypt_bytes;
-}
-
-ssize_t
-decrypt (crypt_data_t* crypt_data, size_t count)
-{
-    int tmp = 0, data_bytes = 0;
-    fprintf (stderr, "count: %d bytes\n", count);
-    fprintf (stderr, "block size of %d bytes\n", EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
-    fprintf (stderr, "this is %d blocks\n", count / EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
-    fprintf (stderr, "odd bytes are %d\n", count % EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
-
-    if (count > 0) {
-        fprintf (stderr, "decrypting %d bytes\n", count);
-        pp_buf (stderr, crypt_data->in_buf, crypt_data->ivsize, 16, 2);
-        if (! EVP_DecryptUpdate (&crypt_data->ctx, crypt_data->out_buf, &tmp, crypt_data->in_buf, count)) {
-            perror ("EVP_DecryptUpdate");
-            return -1;
-        }
-        data_bytes += tmp;
-    }
-
-    fprintf (stderr, "data_bytes after EncryptUpdate: %d\n", data_bytes);
-    if (count < crypt_data->buf_size) {
-        if (!EVP_DecryptFinal (&crypt_data->ctx, &crypt_data->out_buf[data_bytes], &tmp)) {
-            fprintf (stderr, "Incorrect padding: EVP_DecryptFinal failed!\n");
-            return -1;
-        }
-        data_bytes += tmp;
-        fprintf (stderr, "data_bytes after EncryptFinal: %d\n", data_bytes);
-    }
-    fprintf (stderr, "data_bytes before return: %d\n", data_bytes);
-    return data_bytes;
-}
-
-ssize_t
-proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
+proc_loop (args_t* args,
+           crypt_data_t* crypt_data,
+           crypt_update_t crypt_update,
+           crypt_final_t crypt_final)
 {
     ssize_t count_crypt = 0, count_read = 0, count_write = 0;
+    int tmp = 0;
 
     do {
+        count_crypt = 0;
         fprintf (stderr, "===\n");
         count_read = fill_buf (crypt_data->in_buf,
                                crypt_data->buf_size,
@@ -296,9 +239,31 @@ proc_loop (args_t* args, crypt_data_t* crypt_data, crypt_func_t do_crypt)
             exit (EXIT_FAILURE);
         if (args->verbose)
             fprintf (stderr, "read %d bytes\n", count_read);
-        /*  do encrypt / decrypt here, callback?  */
-        if ((count_crypt = do_crypt (crypt_data, count_read)) == -1)
-            return -1;
+
+        fprintf (stderr,
+                 "block size: %d bytes\nblock count: %d\nodd bytes: %d\n",
+                 EVP_CIPHER_CTX_block_size (&crypt_data->ctx),
+                 count_read / EVP_CIPHER_CTX_block_size (&crypt_data->ctx),
+                 count_read % EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
+        if (count_read > 0) {
+            fprintf (stderr, "crypting %d bytes\n", count_read);
+            if (!crypt_update (&crypt_data->ctx, crypt_data->out_buf, &tmp, crypt_data->in_buf, count_read)) {
+                perror ("EVP_EncryptUpdate");
+                return -1;
+            }
+            count_crypt += tmp;
+        }
+        
+        fprintf (stderr, "count_crypt after crypt_update: %d\n", count_crypt);
+        if (count_read < crypt_data->buf_size) {
+            if (!crypt_final (&crypt_data->ctx, &crypt_data->out_buf[count_crypt], &tmp)) {
+                perror ("crypt_final");
+                return -1;
+            }
+            count_crypt += tmp;
+            fprintf (stderr, "count_crypt after crypt_final: %d\n", count_crypt);
+        }
+
         fprintf (stderr, "count_crypt: %d\n", count_crypt);
         count_write += drain_buf (crypt_data->out_buf, count_crypt, STDOUT_FILENO);
         if (count_write == -1)
@@ -385,9 +350,15 @@ main (int argc, char* argv[])
     if (args.verbose)
         dump_mode (&args, &crypt_data);
     if (args.encrypt)
-        count = proc_loop (&args, &crypt_data, &encrypt);
+        count = proc_loop (&args,
+                           &crypt_data,
+                           &EVP_EncryptUpdate,
+                           &EVP_EncryptFinal);
     if (args.decrypt)
-        count = proc_loop (&args, &crypt_data, &decrypt);
+        count = proc_loop (&args,
+                           &crypt_data,
+                           &EVP_DecryptUpdate,
+                           &EVP_DecryptFinal);
     if (count == -1)
         exit (EXIT_FAILURE);
 
