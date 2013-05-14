@@ -18,7 +18,7 @@
 
 #define RANDFILE "/dev/urandom"
 #define USAGE "%s [--verbose] --[encrypt|decrypt] --keyfile /path/to/file.key\n"
-#define MULTBUFS 256 
+#define INBUFSIZE 4096
 
 typedef struct {
     char* keyfile;
@@ -342,7 +342,7 @@ aes_init (crypt_data_t* crypt_data)
                         NULL,
                         crypt_data->keybuf,
                         crypt_data->ivbuf);
-    crypt_data->buf_size = MULTBUFS * EVP_CIPHER_CTX_block_size (&crypt_data->ctx);
+    crypt_data->buf_size = INBUFSIZE;
     crypt_data->crypt_buf =
         (char*)malloc (crypt_data->buf_size +
                        EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
