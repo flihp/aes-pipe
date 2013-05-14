@@ -359,12 +359,12 @@ main (int argc, char* argv[])
         count = proc_loop (&args,
                            &crypt_data,
                            &EVP_EncryptUpdate,
-                           &EVP_EncryptFinal);
+                           &EVP_EncryptFinal_ex);
     if (args.decrypt)
         count = proc_loop (&args,
                            &crypt_data,
                            &EVP_DecryptUpdate,
-                           &EVP_DecryptFinal);
+                           &EVP_DecryptFinal_ex);
     if (count == -1)
         exit (EXIT_FAILURE);
 
