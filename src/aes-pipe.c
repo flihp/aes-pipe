@@ -20,6 +20,8 @@
 #define USAGE "%s [--verbose] --[encrypt|decrypt] --keyfile /path/to/file.key\n"
 #define INBUFSIZE 4096
 
+bool verbose = false;
+
 typedef struct {
     char* keyfile;
     bool encrypt;
@@ -163,7 +165,7 @@ pp_buf (FILE* fp, char* buf, size_t bufsize, size_t width, size_t group)
 }
 
 void
-dump_mode (args_t* args, crypt_data_t* data)
+dump_args (args_t* args)
 {
     fprintf (stderr, "I'll be ");
     if (args->encrypt)
@@ -171,14 +173,7 @@ dump_mode (args_t* args, crypt_data_t* data)
     else
         fprintf (stderr, "decrypting ");
 
-    fprintf (stderr, "with keyfile: %s, of size %d and %d byte IV\n", args->keyfile, data->keysize * 8, data->ivsize);
-    fprintf (stderr,
-             "Algorithm: %s\n",
-             EVP_CIPHER_name (EVP_CIPHER_CTX_cipher (&data->ctx)));
-    fprintf (stderr, "IV:  ");
-    pp_buf (stderr, data->ivbuf, data->ivsize, 16, 2);
-    fprintf (stderr, "Key: ");
-    pp_buf (stderr, data->keybuf, data->keysize, 16, 2);
+    fprintf (stderr, "with keyfile: %s\n", args->keyfile);
 }
 
 ssize_t
@@ -221,8 +216,7 @@ iv_write (crypt_data_t* crypt_data, int fd_out)
 }
 
 ssize_t
-proc_loop (args_t* args,
-           crypt_data_t* crypt_data,
+proc_loop (crypt_data_t* crypt_data,
            crypt_update_t crypt_update,
            crypt_final_t crypt_final)
 {
@@ -231,45 +225,33 @@ proc_loop (args_t* args,
 
     do {
         count_crypt = 0;
-        fprintf (stderr, "===\n");
         count_read = fill_buf (crypt_data->in_buf,
                                crypt_data->buf_size,
                                STDIN_FILENO);
-        fprintf (stderr, "count_read: %d\n", count_read);
         if (count_read == -1)
             exit (EXIT_FAILURE);
-        if (args->verbose)
-            fprintf (stderr, "read %d bytes\n", count_read);
-
-        fprintf (stderr,
-                 "block size: %d bytes\nblock count: %d\nodd bytes: %d\n",
-                 EVP_CIPHER_CTX_block_size (&crypt_data->ctx),
-                 count_read / EVP_CIPHER_CTX_block_size (&crypt_data->ctx),
-                 count_read % EVP_CIPHER_CTX_block_size (&crypt_data->ctx));
-        if (count_read > 0) {
+        if (verbose)
             fprintf (stderr, "crypting %d bytes\n", count_read);
+        if (count_read > 0) {
             if (!crypt_update (&crypt_data->ctx, crypt_data->out_buf, &tmp, crypt_data->in_buf, count_read)) {
-                perror ("EVP_EncryptUpdate");
+                fprintf (stderr, "crypt_update failed\n");
                 return -1;
             }
             count_crypt += tmp;
         }
-        
-        fprintf (stderr, "count_crypt after crypt_update: %d\n", count_crypt);
         if (count_read < crypt_data->buf_size) {
             if (!crypt_final (&crypt_data->ctx, &crypt_data->out_buf[count_crypt], &tmp)) {
-                perror ("crypt_final");
+                fprintf (stderr, "crypt_final failed\n");
                 return -1;
             }
             count_crypt += tmp;
-            fprintf (stderr, "count_crypt after crypt_final: %d\n", count_crypt);
         }
-
-        fprintf (stderr, "count_crypt: %d\n", count_crypt);
+        if (verbose)
+            fprintf (stderr, "crypted %d bytes\n");
         count_write += drain_buf (crypt_data->out_buf, count_crypt, STDOUT_FILENO);
         if (count_write == -1)
             exit (EXIT_FAILURE);
-        if (args->verbose)
+        if (verbose)
             fprintf (stderr, "wrote %d bytes\n", count_write);
         if (count_write < count_crypt) {
             fprintf (stderr, "short write!\n");
@@ -309,6 +291,15 @@ aes_init (crypt_data_t* crypt_data, crypt_init_t crypt_init)
         fprintf (stderr, "OpenSSL initialization failed.\n");
         return 1;
     }
+    if (verbose) {
+        fprintf (stderr,
+                 "EVP Initialized\n  Algorithm: %s\n",
+                 EVP_CIPHER_name (EVP_CIPHER_CTX_cipher (&crypt_data->ctx)));
+        fprintf (stderr, "  IV:  ");
+        pp_buf (stderr, crypt_data->ivbuf, crypt_data->ivsize, 16, 2);
+        fprintf (stderr, "  Key: ");
+        pp_buf (stderr, crypt_data->keybuf, crypt_data->keysize, 16, 2);
+    }
     crypt_data->buf_size = INBUFSIZE;
     crypt_data->out_buf =
         (char*)malloc (crypt_data->buf_size +
@@ -331,6 +322,10 @@ main (int argc, char* argv[])
     parse_args (argc, argv, &args);
     if (check_sanity (argv[0], &args))
         exit (EXIT_FAILURE);
+    /*  set global flag  */
+    verbose = args.verbose;
+    if (verbose)
+        dump_args (&args);
 
     crypt_data.keysize = get_key (args.keyfile, crypt_data.keybuf, EVP_MAX_KEY_LENGTH);
     if (crypt_data.keysize == -1)
@@ -353,22 +348,18 @@ main (int argc, char* argv[])
         count = aes_init (&crypt_data, &EVP_DecryptInit_ex);
     if (count == -1)
         exit (EXIT_FAILURE);
-    if (args.verbose)
-        dump_mode (&args, &crypt_data);
     if (args.encrypt)
-        count = proc_loop (&args,
-                           &crypt_data,
+        count = proc_loop (&crypt_data,
                            &EVP_EncryptUpdate,
                            &EVP_EncryptFinal_ex);
     if (args.decrypt)
-        count = proc_loop (&args,
-                           &crypt_data,
+        count = proc_loop (&crypt_data,
                            &EVP_DecryptUpdate,
                            &EVP_DecryptFinal_ex);
     if (count == -1)
         exit (EXIT_FAILURE);
 
-    if (args.verbose)
+    if (verbose)
         fprintf (stderr,
                  "successfully %s %d bytes of data\n",
                  args.encrypt ? "encrypted" : "decrypted",
