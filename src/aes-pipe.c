@@ -38,6 +38,7 @@ typedef struct {
     ssize_t ivsize;
 } crypt_data_t;
 
+typedef int (*crypt_init_t)(EVP_CIPHER_CTX*, const EVP_CIPHER*, ENGINE*, const unsigned char*, const unsigned char*);
 typedef int (*crypt_update_t)(EVP_CIPHER_CTX*, unsigned char*, int*, const unsigned char*, int);
 typedef int (*crypt_final_t)(EVP_CIPHER_CTX*, unsigned char*, int *);
 
@@ -280,7 +281,7 @@ proc_loop (args_t* args,
 }
 
 int
-aes_init (crypt_data_t* crypt_data)
+aes_init (crypt_data_t* crypt_data, crypt_init_t crypt_init)
 {
     const EVP_CIPHER* cipher = 0;
 
@@ -299,14 +300,15 @@ aes_init (crypt_data_t* crypt_data)
         return 1;
     }
 
-    /*  use NULL cipher for testing  */
-    cipher = EVP_enc_null ();
-
-    EVP_EncryptInit_ex (&crypt_data->ctx,
-                        cipher,
-                        NULL,
-                        crypt_data->keybuf,
-                        crypt_data->ivbuf);
+    EVP_CIPHER_CTX_init (&crypt_data->ctx);
+    if (!crypt_init (&crypt_data->ctx,
+                     cipher,
+                     NULL,
+                     crypt_data->keybuf,
+                     crypt_data->ivbuf)) {
+        fprintf (stderr, "OpenSSL initialization failed.\n");
+        return 1;
+    }
     crypt_data->buf_size = INBUFSIZE;
     crypt_data->out_buf =
         (char*)malloc (crypt_data->buf_size +
@@ -345,7 +347,11 @@ main (int argc, char* argv[])
         if (crypt_data.ivsize == -1)
             exit (EXIT_FAILURE);
     }
-    if (aes_init (&crypt_data))
+    if (args.encrypt)
+        count = aes_init (&crypt_data, &EVP_EncryptInit_ex);
+    if (args.decrypt)
+        count = aes_init (&crypt_data, &EVP_DecryptInit_ex);
+    if (count == -1)
         exit (EXIT_FAILURE);
     if (args.verbose)
         dump_mode (&args, &crypt_data);
