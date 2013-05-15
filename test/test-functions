@@ -1,0 +1,40 @@
+
+AES_PIPE=../src/aes-pipe
+
+if [ ! -e ${AES_PIPE} ]; then
+    echo "${AES_PIPE} not built yet?"
+    exit 99
+fi
+
+gen_data ()
+{
+    local TEST_DIR=$1
+    local BYTES=$2
+    local FILE=${TEST_DIR}/${BYTES}.bin
+
+    dd if=/dev/urandom of=${FILE} bs=${BYTES} count=1 > /dev/null 2>&1
+
+    echo ${FILE}
+}
+
+test_aes_pipe ()
+{
+    local DATA_FILE=$1
+    local KEY_FILE=$2
+
+    cat ${DATA_FILE} | ${AES_PIPE} --encrypt --keyfile ${KEY_FILE} | ${AES_PIPE} --decrypt --keyfile ${KEY_FILE} > /dev/null
+    return $?
+}
+
+test_run ()
+{
+    local KEY_SIZE=$1
+    local DATA_SIZE=$2
+
+    DIR_TMP=$(mktemp --directory --tmpdir=/tmp one-byte.XXXXXX)
+    DATA_FILE=$(gen_data ${DIR_TMP} ${DATA_SIZE})
+    KEY_FILE=$(gen_data ${DIR_TMP} ${KEY_SIZE})
+
+    test_aes_pipe ${DATA_FILE} ${KEY_FILE}
+    return $?
+}
