@@ -8,3 +8,11 @@ I put together this example when I wasn't able to find an existing one that met 
 When encrypting, a random IV must be generated and we write this as the first bytes of the data stream.  This requires that when decrypting, the first bytes are removed from the stream and used as the IV.  I don't think there's anything 'standard' about this format but it seemed like the easiest way to persist the IV for easy retrieval.
 
 Though more 'real' than most examples I was able to find this is by no means a program intended for use in the real world.  It suffers from a number of shortcomings which include requiring the encryption key be in a disk on the file system.  Use at your own risk, YMMV, and other disclaimers.  Feedback welcome.
+
+building
+========
+This is one of my first gos at using autotools.  Set it up on your system and create all of the build stuff before trying to ./configure:
+$ aclocal && autoconf && automake -a
+$ ./configure && make
+
+There are a few tests in ./test directory.  Look here for invocation examples.
