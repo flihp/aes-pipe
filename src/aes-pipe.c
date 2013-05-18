@@ -279,7 +279,7 @@ aes_init (crypt_data_t* crypt_data, crypt_init_t crypt_init)
         break;
     default:
         fprintf (stderr, "Invalid key size.\n");
-        return 1;
+        return -1;
     }
 
     EVP_CIPHER_CTX_init (&crypt_data->ctx);
