@@ -318,6 +318,9 @@ main (int argc, char* argv[])
     args_t args = { 0, };
     crypt_data_t crypt_data = { 0, };
     ssize_t count = 0;
+    crypt_init_t init_func = NULL;
+    crypt_update_t update_func = NULL;
+    crypt_final_t final_func = NULL;
 
     parse_args (argc, argv, &args);
     if (check_sanity (argv[0], &args))
@@ -336,26 +339,22 @@ main (int argc, char* argv[])
         crypt_data.ivsize = iv_write (&crypt_data, STDOUT_FILENO);
         if (crypt_data.ivsize == -1)
             exit (EXIT_FAILURE);
+        init_func = &EVP_EncryptInit_ex;
+        update_func = &EVP_EncryptUpdate;
+        final_func = &EVP_EncryptFinal_ex;
     }
     if (args.decrypt) {
         crypt_data.ivsize = iv_read (&crypt_data, STDIN_FILENO);
         if (crypt_data.ivsize == -1)
             exit (EXIT_FAILURE);
+        init_func = &EVP_DecryptInit_ex;
+        update_func = &EVP_DecryptUpdate;
+        final_func = &EVP_DecryptFinal_ex;
     }
-    if (args.encrypt)
-        count = aes_init (&crypt_data, &EVP_EncryptInit_ex);
-    if (args.decrypt)
-        count = aes_init (&crypt_data, &EVP_DecryptInit_ex);
+    count = aes_init (&crypt_data, init_func);
     if (count == -1)
         exit (EXIT_FAILURE);
-    if (args.encrypt)
-        count = proc_loop (&crypt_data,
-                           &EVP_EncryptUpdate,
-                           &EVP_EncryptFinal_ex);
-    if (args.decrypt)
-        count = proc_loop (&crypt_data,
-                           &EVP_DecryptUpdate,
-                           &EVP_DecryptFinal_ex);
+    count = proc_loop (&crypt_data, update_func, final_func);
     if (count == -1)
         exit (EXIT_FAILURE);
 
