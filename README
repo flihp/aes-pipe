@@ -9,6 +9,14 @@ When encrypting, a random IV must be generated and we write this as the first by
 
 Though more 'real' than most examples I was able to find this is by no means a program intended for use in the real world.  It suffers from a number of shortcomings that includes, but isn't limited to requiring the encryption key be in a disk on the file system.  Use at your own risk, YMMV, and other disclaimers.  Feedback is always welcome.
 
+dependencies
+============
+
+This project requires the following software packages to build successfully on
+a Debian system:
+
+build-essential, autoconf, automake, pkg-config, libssl-dev
+
 building
 ========
 This is one of my first go's at using autotools.  Set it up on your system and create all of the build stuff before trying to ./configure:
