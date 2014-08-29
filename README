@@ -24,3 +24,4 @@ $ aclocal && autoconf && automake -a
 $ ./configure && make
 
 There are a few tests in ./test directory.  Look here for invocation examples.
+
