@@ -1,6 +1,8 @@
 aes-pipe
 ========
 
+jeeeeeez
+
 This is a simple program to demonstrate the OpenSSL EVP API for symmetric cryptography.  There are a number of examples out there that demonstrate a simple use of this API to encrypt / decrypt a small number of blocks typically using a password and a salt.  I specifically wanted an example program that demonstrated what I would call 'bulk encryption' using a static key and IV.
 
 I put together this example when I wasn't able to find an existing one that met the above criteria.  A program designed for use in a UNIX shell pipeline seemed to be the logical solution to this problem.  Specifically this program takes a key file and either '--encrypt' or '--decrypt' as a parameter on the command line.  It then selects the appropriate AES algorithm (in CBC mode) based on the key size and either encrypts or decrypts data read from stdin.  The encrypted output is written to stdout.
